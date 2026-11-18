@@ -1,0 +1,28 @@
+{
+  "name": "v0 demo",
+  "size": [1080, 1920],
+  "fps": 25,
+  "bgm_volume": 0.12,
+  "tracks": [
+    {
+      "type": "bgm",
+      "clips": [{ "source": "../assets/bgm.mp3", "fade_in": 1, "fade_out": 2 }]
+    },
+    {
+      "type": "image",
+      "clips": [
+        { "source": "../assets/a1.png", "start": 0, "duration": 3.0, "effect": "kenburns_in" },
+        { "source": "../assets/a2.png", "start": 3.0, "duration": 3.5, "effect": "kenburns_out", "transition_in": { "type": "fade", "duration": 0.5 } },
+        { "source": "../assets/a3.png", "start": 6.5, "duration": 3.0, "transition_in": { "type": "fade", "duration": 0.5 } }
+      ]
+    },
+    {
+      "type": "text",
+      "clips": [
+        { "text": "16 年开发", "start": 0.3, "duration": 2.4, "style": "big_center", "anim": "fade_in" },
+        { "text": "先判断 再报价", "start": 3.4, "duration": 2.8, "style": "accent" },
+        { "text": "省的不只是钱", "start": 6.9, "duration": 2.4, "style": "subtitle" }
+      ]
+    }
+  ]
+}
