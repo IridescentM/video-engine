@@ -63,3 +63,28 @@ docs/            规范与设计
 - **时间轴是唯一真源**：任何效果都必须能写进 JSON，不靠手工点
 - **渲染可重复**：同样的 JSON 永远出同样的片（素材不变）
 - **失败要吵**：素材缺失、时长冲突、参数非法都直接报错，不静默降级
+
+## 资源控制（渲染时不卡）
+
+| 环境变量 | 默认 | 作用 |
+|---|---|---|
+| `VIDEO_ENGINE_THREADS` | 2 | 编码/滤镜线程数；越小越不卡 |
+| `VIDEO_ENGINE_LOW_PRIORITY` | 1 | 进程设为「低于正常」优先级 |
+| `VIDEO_ENGINE_GPU` | 0 | 1 = 用 NVENC 显卡编码（需要 ffmpeg 6.x） |
+| `VIDEO_ENGINE_SLEEP_AFTER_CLIP` | 0 | 每渲染完一个片段主动 sleep N 秒，压低平均占用 |
+
+实测（53.6 秒预览，1080×1920 素材降到 720×1280）：
+
+| 模式 | 耗时 | CPU 占用 |
+|---|---|---|
+| 默认（CPU 全速） | ~20s | 95%+ |
+| 2 线程 + 低优先级 | 29s | 60–70% |
+| GPU(NVENC) + 4 线程 | 16s | 40–78% |
+| **GPU + 2 线程 + 每段 sleep 1.5s** | ~90s | **41%** |
+
+推荐组合（边工作边渲染）：
+
+```bash
+VIDEO_ENGINE_GPU=1 VIDEO_ENGINE_THREADS=2 VIDEO_ENGINE_SLEEP_AFTER_CLIP=1.5 \
+python -m video_engine render project.json -o out.mp4
+```

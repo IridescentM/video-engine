@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import os
 import tempfile
+import time
 from pathlib import Path
 
 from . import effects, ffmpeg, textimg
@@ -14,8 +15,7 @@ def _concat_simple(clips: list[Path], out: Path) -> None:
     lst = out.parent / "concat.txt"
     lst.write_text("".join(f"file '{c.as_posix()}'\n" for c in clips), encoding="utf-8")
     ffmpeg.run(["-f", "concat", "-safe", "0", "-i", str(lst),
-                "-c:v", "libx264", "-preset", "veryfast", "-crf", "20",
-                "-pix_fmt", "yuv420p", "-an", str(out)])
+                *ffmpeg.video_encode_args(), "-an", str(out)])
 
 
 def _concat_xfade(clips: list[Path], durations: list[float], trans: list[float], fps: int, out: Path) -> None:
@@ -41,8 +41,7 @@ def _concat_xfade(clips: list[Path], durations: list[float], trans: list[float],
         "-map", cur,
         "-an",
         "-r", str(fps),
-        "-c:v", "libx264", "-preset", "veryfast", "-crf", "20",
-        "-pix_fmt", "yuv420p",
+        *ffmpeg.video_encode_args(),
         str(out),
     ])
 
@@ -88,7 +87,7 @@ def _mix_audio(project: Project, base: Path, work: Path, out: Path) -> None:
         filters.append(f"{mix_tags[0]}anull[aout]")
     else:
         filters.append(
-            "".join(mix_tags) + f"amix=inputs={len(mix_tags)}:duration=first:dropout_transition=2,"
+            "".join(mix_tags) + f"amix=inputs={len(mix_tags)}:duration=longest:dropout_transition=2,"
             "alimiter=limit=0.95[aout]"
         )
 
@@ -96,9 +95,9 @@ def _mix_audio(project: Project, base: Path, work: Path, out: Path) -> None:
         *inputs,
         "-filter_complex", ";".join(filters),
         "-map", "0:v", "-map", "[aout]",
-        "-c:v", "libx264", "-preset", "veryfast", "-crf", "20", "-pix_fmt", "yuv420p",
+        *ffmpeg.video_encode_args(),
         "-c:a", "aac", "-b:a", "160k",
-        "-shortest",
+        "-t", f"{ffmpeg.duration(base):.3f}",
         str(out),
     ])
 
@@ -138,7 +137,7 @@ def _overlay_text(project: Project, base: Path, work: Path, out: Path, duration:
         "-map", cur,
         "-an",
         "-t", f"{duration:.3f}",
-        "-c:v", "libx264", "-preset", "veryfast", "-crf", "20", "-pix_fmt", "yuv420p",
+        *ffmpeg.video_encode_args(),
         str(out),
     ])
 
@@ -162,13 +161,15 @@ def render(project: Project, out_path: str | Path, keep_tmp: bool = False) -> Pa
         durations.append(d)
         trans.append(clip.transition_in.duration if clip.transition_in.type == "fade" else 0.0)
         print(f"  片段 {i + 1}/{len(clips)}  {Path(clip.source).name}  {d:.2f}s")
+        gap = float(os.environ.get("VIDEO_ENGINE_SLEEP_AFTER_CLIP", "0"))
+        if gap > 0:
+            time.sleep(gap)   # 主动让路，降低平均 CPU 占用
 
     base = work / "base.mp4"
     if len(built) == 1:
         base = built[0]
-    elif any(t > 0 for t in trans[1:]):
-        _concat_xfade(built, durations, trans, project.fps, base)
     else:
+        # v0.1：统一走 concat（转场已在片段内用淡入淡出实现），时长精确可预测
         _concat_simple(built, base)
 
     with_text = work / "with_text.mp4"

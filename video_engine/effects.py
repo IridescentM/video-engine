@@ -60,14 +60,19 @@ def build_clip(project: Project, clip: Clip, out: Path) -> float:
         inputs = ["-ss", f"{clip.in_point:.3f}", "-t", f"{dur:.3f}", "-i", str(src)]
         vf = f"{_cover_filter((w, h))},fps={fps},format=yuv420p"
 
+    # 转场用「淡入淡出到黑」实现：稳定、时长精确，不用 xfade 链
+    if clip.transition_in.type == "fade":
+        fi = min(0.4, dur / 4)
+        fo = min(0.4, dur / 4)
+        vf = f"{vf},fade=t=in:st=0:d={fi:.2f},fade=t=out:st={dur - fo:.2f}:d={fo:.2f}"
+
     ffmpeg.run([
         *inputs,
         "-an",
         "-vf", vf,
         "-r", str(fps),
         "-t", f"{dur:.3f}",
-        "-c:v", "libx264", "-preset", "veryfast", "-crf", "20",
-        "-pix_fmt", "yuv420p",
+        *ffmpeg.video_encode_args(),
         str(out),
     ])
     return dur
