@@ -57,7 +57,14 @@ def build_clip(project: Project, clip: Clip, out: Path) -> float:
         else:
             vf = f"{base},fps={fps},format=yuv420p"
     else:
-        inputs = ["-ss", f"{clip.in_point:.3f}", "-t", f"{dur:.3f}", "-i", str(src)]
+        src_dur = ffmpeg.duration(src)
+        need_loop = clip.loop or (src_dur > 0 and src_dur < clip.in_point + dur - 0.05)
+        if need_loop:
+            # 素材短于所需时长：循环补足，避免片段被截短导致整体时长漂移
+            inputs = ["-stream_loop", "-1", "-ss", f"{clip.in_point:.3f}",
+                      "-t", f"{dur:.3f}", "-i", str(src)]
+        else:
+            inputs = ["-ss", f"{clip.in_point:.3f}", "-t", f"{dur:.3f}", "-i", str(src)]
         vf = f"{_cover_filter((w, h))},fps={fps},format=yuv420p"
 
     # 转场用「淡入淡出到黑」实现：稳定、时长精确，不用 xfade 链
